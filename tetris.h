@@ -63,7 +63,7 @@ class tetris{
         bool DoesPieceFit(int nTetromino, int nRotation, int nPosX, int nPosY);
         void HandleInput();
         void Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool second);
-        void Update(bool& bGameOver);
+        void Update(bool& bGameOver, bool second = false);
 };
 
 int tetris::Rotate(int px, int py, int r){
@@ -136,7 +136,7 @@ void tetris::HandleInput(){
         bRotateHold = true;
 }
 
-void tetris::Update(bool& bGameOver){
+void tetris::Update(bool& bGameOver, bool second){
     if(!vLines.empty()){
 		if(clearCounter == clearSpeed){
 			for (auto &v : vLines){
@@ -148,9 +148,11 @@ void tetris::Update(bool& bGameOver){
 			}
 			vLines.clear();
         }
+		//if(!second)
 		clearCounter++;
 		return;
 	}
+	//if(!second)
 	counter++;
 	if(counter == speed){
 		counter = 0;
@@ -204,7 +206,7 @@ void tetris::Update(bool& bGameOver){
 
 void tetris::Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool second){
 
-    int xSpace = second ? 2 : 2 * nFieldWidth + 2;
+    int xSpace = second ? 2 * nFieldWidth + 2 : 2;
 
 	// Draw Field
     for (int x = 0; x < nFieldWidth; x++)
@@ -217,7 +219,10 @@ void tetris::Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool sec
 			if (tetromino[nCurrentPiece][Rotate(px, py, nCurrentRotation)] != L'.')
 				screen[(nCurrentY + py + 2)*nScreenWidth + (nCurrentX + px + xSpace)] = nCurrentPiece + 65;
 
-	swprintf_s(&screen[21 * nScreenWidth + xSpace], 16, L"SCORE: %8d", nScore);
+	if(!second)
+		swprintf_s(&screen[21 * nScreenWidth + xSpace], 21, L"YOUR SCORE: %8d", nScore);
+	else
+		swprintf_s(&screen[21 * nScreenWidth + xSpace], 22, L"RIVAL SCORE: %8d", nScore);
 
     /*
     for (int y = 0; y < nFieldWidth; y++){
