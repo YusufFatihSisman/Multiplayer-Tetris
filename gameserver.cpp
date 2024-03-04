@@ -8,6 +8,7 @@ using namespace std;
 class server : public server_interface<MessageType>{
 
     int playersReady = 0;
+    int randSeed = 12;
 
 	public:
 		
@@ -20,7 +21,12 @@ class server : public server_interface<MessageType>{
                     if(playersReady == 2){
                         Message<MessageType> newMsg;
                         newMsg.head = {MessageType::Start, 0};
-                        SendAll(newMsg);
+                        newMsg << randSeed;
+                        SendAll(newMsg, client);
+                        newMsg >> randSeed;
+                        randSeed += 1;
+                        newMsg << randSeed;
+                        Send(client, newMsg);
                     }
                     break;
                 case MessageType::Input:
@@ -28,6 +34,11 @@ class server : public server_interface<MessageType>{
                     break;
                 case MessageType::NewPiece:
                     SendAll(msg, client);
+                    break;
+                case MessageType::Lose:
+                    Message<MessageType> newMsg;
+                    newMsg.head = {MessageType::Win, 0};
+                    SendAll(newMsg, client);
                     break;
             }
         }

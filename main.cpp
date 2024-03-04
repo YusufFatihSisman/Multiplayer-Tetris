@@ -3,6 +3,7 @@
 #include <mutex>
 #include <vector>
 #include <stdio.h>
+#include <time.h>
 
 #ifdef _WIN32
 #define _WIN32_WINNT 0x0500
@@ -32,7 +33,7 @@ class client : public client_interface<MessageType>{
 		tetris rival;
 		bool ready;
 
-		bool enemyLose;
+		bool enemyLose = false;
 		bool enemyUpdate;
 
 		client(){
@@ -45,23 +46,22 @@ class client : public client_interface<MessageType>{
             newMsg.head = {MessageType::Ready, 0};
 			Send(newMsg);
             messageQueue.wait();
-            //while(!messageQueue.empty()){
             ClientMessage<MessageType> message = messageQueue.pop();
-                //Handle Message
             HandleMessage(message.message);
-           // }
         }
 
 	protected:
 		void HandleMessage(const Message<MessageType>& msg) override{
 
 			if(msg.head.id == MessageType::Start){
-				//scoped_lock<mutex> lock(mtx);
-				//cv.notify_one();
+				Message<MessageType> ms = msg;
+				int seed;
+				ms >> seed;
 				ready = true;
+				srand(seed);
 			}
 			else if(msg.head.id == MessageType::Win){
-
+				enemyLose = true;
 			}
 			else if(msg.head.id == MessageType::Lose){
 				
@@ -69,32 +69,26 @@ class client : public client_interface<MessageType>{
 			else if(msg.head.id == MessageType::Input){
 				Message<MessageType> ms = msg;
 				InputBody ib;
-				//ms >> ib;
-				//ms >> rival.bKey;
 				ms >> ib;
 				for(int i = 0; i < 4; i++){
 					rival.bKey[i] = ib.inputs[i];
 				}
 				rival.counter = ib.counter;
 				rival.clearCounter = ib.clearCounter;
-
-				//cerr << rival.counter << " " << rival.clearCounter << "\n";
-
-				rival.nCurrentPiece = ib.nCurrentPiece;
-    			rival.nCurrentRotation = ib.nCurrentRotation;
-    			rival.nCurrentX = ib.nCurrentX;
-    			rival.nCurrentY = ib.nCurrentY;
+				//rival.nCurrentPiece = ib.nCurrentPiece;
+    			//rival.nCurrentRotation = ib.nCurrentRotation;
+    			//rival.nCurrentX = ib.nCurrentX;
+    			//rival.nCurrentY = ib.nCurrentY;
 				rival.speed = ib.speed;
 
 				rival.Update(enemyLose);
 				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-				//rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				enemyUpdate = true;
 			}
 			else if(msg.head.id == MessageType::NewPiece){
-				//rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				Message<MessageType> ms = msg;
 				ms >> rival.nCurrentPiece;
+				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				enemyUpdate = true;
 			}
 		}
@@ -131,6 +125,9 @@ int main(){
 			cl.enemyUpdate = false;
 			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
 		}
+		if(cl.enemyLose){
+			break;
+		}
 
 		for (int k = 0; k < 4; k++)							// R   L   D Z
         	cl.player.bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28Z"[k]))) != 0;
@@ -148,34 +145,28 @@ int main(){
 				speedUpCounter = 0;
 				if (cl.player.speed >= 5){
 					cl.player.speed--;
-					//player2.speed--;
 				} 
 			}
 
 			Message<MessageType> ms;
 			ms.head = {MessageType::Input, 0};
 
-			//ms << cl.player.bKey;
 			InputBody ib;
 			for(int i = 0; i < 4; i++){
 				ib.inputs[i] = cl.player.bKey[i];
 			}
 			ib.counter = cl.player.counter;
 			ib.clearCounter = cl.player.clearCounter;
-			ib.nCurrentPiece = cl.player.nCurrentPiece;
+			ib.speed = cl.player.speed;
+			/*ib.nCurrentPiece = cl.player.nCurrentPiece;
 			ib.nCurrentX = cl.player.nCurrentX;
 			ib.nCurrentY = cl.player.nCurrentY;
-			ib.speed = cl.player.speed;
-			ib.nCurrentRotation = cl.player.nCurrentRotation;
+			ib.nCurrentRotation = cl.player.nCurrentRotation;*/
 			ms << ib;
 
 			cl.Send(ms);
-
 			cl.player.Update(bGameOver);
-			//player2.Update(bGameOver);
-
 			cl.player.Draw(screen, nScreenWidth, nScreenHeight, false);
-			//cl.rival.Draw(screen, nScreenWidth, nScreenHeight, true); // if piece change draw before this
 
 			if(cl.player.counter == 0 && cl.player.clearCounter == 0){
 				Message<MessageType> ms;
@@ -183,14 +174,36 @@ int main(){
 				ms << cl.player.nCurrentPiece;
 				cl.Send(ms);
 			}
-
-			//player2.Draw(screen, nScreenWidth, nScreenHeight, true);
 			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
+
+			if(bGameOver){
+				Message<MessageType> ms;
+				ms.head = {MessageType::Lose, 0};
+				cl.Send(ms);
+			}
 		}
 	}
 
+	cl.Disconnect();
+
+	if(bGameOver){
+		//print lose
+	}else{
+		//print win
+	}
+
 	CloseHandle(hConsole);
-	std::cout << "Game Over!!" << endl;
+
+	if(bGameOver){
+		//print lose
+		std::cout << "You Lose!!" << endl;
+	}else{
+		//print win
+		std::cout << "You Win!!" << endl;
+	}
+	std::this_thread::sleep_for(2000ms);
+
+	
 	system("pause");
 	return 0;
     

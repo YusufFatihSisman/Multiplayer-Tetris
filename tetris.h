@@ -155,7 +155,7 @@ void tetris::Update(bool& bGameOver, bool second){
 	}
 	//if(!second)
 	counter++;
-	if(counter == speed){
+	if(counter >= speed){
 		counter = 0;
 		down = true;
 	}
