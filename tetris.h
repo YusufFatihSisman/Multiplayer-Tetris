@@ -130,6 +130,7 @@ void tetris::HandleInput(){
     // Rotate, but latch to stop wild spinning
     if (bKey[3]){
         nCurrentRotation += (bRotateHold && DoesPieceFit(nCurrentPiece, nCurrentRotation + 1, nCurrentX, nCurrentY)) ? 1 : 0;
+		nCurrentRotation %= 4;
         bRotateHold = false;
     }
     else

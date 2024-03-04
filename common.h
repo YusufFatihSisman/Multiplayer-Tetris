@@ -18,4 +18,5 @@ struct InputBody{
     uint32_t nCurrentRotation;
     uint32_t nCurrentX;
     uint32_t nCurrentY;
+    uint32_t speed;
 };

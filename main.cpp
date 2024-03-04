@@ -75,23 +75,26 @@ class client : public client_interface<MessageType>{
 				for(int i = 0; i < 4; i++){
 					rival.bKey[i] = ib.inputs[i];
 				}
-				//rival.counter = ib.counter;
-				///rival.clearCounter = ib.clearCounter;
+				rival.counter = ib.counter;
+				rival.clearCounter = ib.clearCounter;
 
 				//cerr << rival.counter << " " << rival.clearCounter << "\n";
 
-				/*rival.nCurrentPiece = ib.nCurrentPiece;
+				rival.nCurrentPiece = ib.nCurrentPiece;
     			rival.nCurrentRotation = ib.nCurrentRotation;
     			rival.nCurrentX = ib.nCurrentX;
-    			rival.nCurrentY = ib.nCurrentY;*/
+    			rival.nCurrentY = ib.nCurrentY;
+				rival.speed = ib.speed;
 
 				rival.Update(enemyLose);
 				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
+				//rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				enemyUpdate = true;
 			}
 			else if(msg.head.id == MessageType::NewPiece){
+				//rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				Message<MessageType> ms = msg;
-				//ms >> rival.nCurrentPiece;
+				ms >> rival.nCurrentPiece;
 				enemyUpdate = true;
 			}
 		}
@@ -140,6 +143,15 @@ int main(){
 					cl.player.bKey[k] = false;
 			}
 
+			speedUpCounter++;
+			if(speedUpCounter == speedUp){
+				speedUpCounter = 0;
+				if (cl.player.speed >= 5){
+					cl.player.speed--;
+					//player2.speed--;
+				} 
+			}
+
 			Message<MessageType> ms;
 			ms.head = {MessageType::Input, 0};
 
@@ -153,6 +165,8 @@ int main(){
 			ib.nCurrentPiece = cl.player.nCurrentPiece;
 			ib.nCurrentX = cl.player.nCurrentX;
 			ib.nCurrentY = cl.player.nCurrentY;
+			ib.speed = cl.player.speed;
+			ib.nCurrentRotation = cl.player.nCurrentRotation;
 			ms << ib;
 
 			cl.Send(ms);
@@ -160,19 +174,10 @@ int main(){
 			cl.player.Update(bGameOver);
 			//player2.Update(bGameOver);
 
-			speedUpCounter++;
-			if(speedUpCounter == speedUp){
-				speedUpCounter = 0;
-				if (cl.player.speed >= 5){
-					cl.player.speed--;
-					//player2.speed--;
-				} 
-			}
-
 			cl.player.Draw(screen, nScreenWidth, nScreenHeight, false);
 			//cl.rival.Draw(screen, nScreenWidth, nScreenHeight, true); // if piece change draw before this
 
-			if(cl.player.nCurrentY == 0){
+			if(cl.player.counter == 0 && cl.player.clearCounter == 0){
 				Message<MessageType> ms;
 				ms.head = {MessageType::NewPiece, 0};
 				ms << cl.player.nCurrentPiece;
