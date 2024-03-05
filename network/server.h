@@ -48,7 +48,7 @@ class server_interface{
         }
 
     protected:
-        virtual void HandleMessage(std::shared_ptr<connection<T>> client, const Message<T>& msg) = 0;
+        virtual void HandleMessage(std::shared_ptr<connection<T>> client, Message<T>& msg) = 0;
 
         virtual void OnClientDisconnect(std::shared_ptr<connection<T>> connection){}
 

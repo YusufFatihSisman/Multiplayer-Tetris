@@ -18,9 +18,6 @@ class client_interface{
         tsqueue<ClientMessage<T>> messageQueue;
 
     public:
-
-        //client_interface();
-
         bool Connect(const std::string& host, const uint16_t port){
             try{
                 asio::ip::tcp::resolver resolver(context);
@@ -56,18 +53,16 @@ class client_interface{
         }
 
         void Update(uint16_t amount = 1){
-            //messageQueue.wait();
             uint16_t i = 0;
             while(!messageQueue.empty() && i < amount){
                 ClientMessage<T> message = messageQueue.pop();
-                //Handle Message
                 HandleMessage(message.message);
                 i++;
             }
         }
     
     protected:
-        virtual void HandleMessage(const Message<T>& msg) = 0;
+        virtual void HandleMessage(Message<T>& msg) = 0;
 
 
 };
