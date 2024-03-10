@@ -37,8 +37,9 @@ class server_interface{
 
         }
 
-        void Update(uint16_t amount = -1){
-            messageQueue.wait();
+        void Update(uint16_t amount = -1, bool wait = false){
+            if(wait)
+                messageQueue.wait();
             uint16_t i = 0;
             while(!messageQueue.empty() && i < amount){
                 ClientMessage<T> msg = messageQueue.pop();
@@ -51,6 +52,33 @@ class server_interface{
         virtual void HandleMessage(std::shared_ptr<connection<T>> client, Message<T>& msg) = 0;
 
         virtual void OnClientDisconnect(std::shared_ptr<connection<T>> connection){}
+
+        virtual bool OnClientConnect(std::shared_ptr<connection<T>> connection) = 0;
+
+        size_t ConnectionAmount(){
+            return connections.size();
+        }
+
+        void Send(uint32_t id, const Message<T>& msg){
+            std::vector<std::shared_ptr<connection<T>>>::iterator it;
+ 
+            it = connections.begin();
+
+            for (auto it = connections.begin(); it != connections.end(); it++){
+                if(*it && (*it)->IsConnected()){
+                    if((*it)->GetId() == id)
+                        (*it)->Send(msg);
+                }else{
+                    OnClientDisconnect(*it);
+
+                    (*it).reset();
+
+                    connections.erase(it);
+                    std::cout << connections.size() << "\n";
+                    it--;
+                }
+            }
+        }
 
         void Send(std::shared_ptr<connection<T>> connection, const Message<T>& msg){
             if(connection && connection->IsConnected()){
@@ -100,9 +128,12 @@ class server_interface{
                         std::cout << "[SERVER] New Connection: " << socket.remote_endpoint() << "\n";
                         std::shared_ptr<connection<T>> newConnection = std::make_shared<connection<T>>(context, std::move(socket), messageQueue);
 
-                        connections.push_back(std::move(newConnection));
-                        
-                        connections[connections.size()-1]->ConnectToClient(cId++);
+                        if(OnClientConnect(newConnection)){
+                            connections.push_back(std::move(newConnection));
+                            connections[connections.size()-1]->ConnectToClient(cId++);
+                        }else{
+                            std::cout << "[SERVER] Connection Denied\n";
+                        }
                         
                     }else{
                         std::cout << "[SERVER] New Connection Error: " << ec.message() << "\n";

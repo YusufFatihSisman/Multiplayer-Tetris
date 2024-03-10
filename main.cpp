@@ -34,7 +34,9 @@ class client : public client_interface<MessageType>{
 		bool ready;
 
 		bool enemyLose = false;
-		bool enemyUpdate;
+		bool playerLose = false;
+		bool rivalUpdate = false;
+		bool playerUpdate = false;
 
 		client(){
 			player = tetris();
@@ -54,42 +56,82 @@ class client : public client_interface<MessageType>{
 		void HandleMessage(Message<MessageType>& msg) override{
 
 			if(msg.head.id == MessageType::Start){
-				int seed;
-				msg >> seed;
 				ready = true;
-				srand(seed);
 			}
 			else if(msg.head.id == MessageType::Win){
 				enemyLose = true;
 			}
 			else if(msg.head.id == MessageType::Lose){
-				
+				playerLose = true;
 			}
-			else if(msg.head.id == MessageType::Input){
-				InputBody ib;
-				msg >> ib;
-				for(int i = 0; i < 4; i++){
-					rival.bKey[i] = ib.inputs[i];
-				}
-				//rival.counter = ib.counter;
-				//rival.clearCounter = ib.clearCounter;
-				rival.speed = ib.speed;
-
-				rival.Update(enemyLose);
-				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-				enemyUpdate = true;
-			}
-			else if(msg.head.id == MessageType::NewPiece){
-				msg >> rival.nCurrentPiece;
-				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-				enemyUpdate = true;
-			}
-			else if(msg.head.id == MessageType::Damage){
-				int damage;
-				msg >> damage;
-				player.nScore -= damage;
+			else if(msg.head.id == MessageType::InputResponse){
+				PlayerState ps;
+				msg >> ps;
+				player.nCurrentPiece = ps.nCurrentPiece;
+				player.nCurrentRotation = ps.nCurrentRotation;
+				player.nCurrentX = ps.nCurrentX;
+				player.nCurrentY = ps.nCurrentY;
+				player.nScore = ps.nScore;
 				player.Draw(screen, nScreenWidth, nScreenHeight, false);
+				playerUpdate = true;
 			}
+			else if(msg.head.id == MessageType::RivalState){
+				PlayerState ps;
+				msg >> ps;
+				rival.nCurrentPiece = ps.nCurrentPiece;
+				rival.nCurrentRotation = ps.nCurrentRotation;
+				rival.nCurrentX = ps.nCurrentX;
+				rival.nCurrentY = ps.nCurrentY;
+				rival.nScore = ps.nScore;
+				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
+				rivalUpdate = true;
+			}
+			else if(msg.head.id == MessageType::GState){
+				GameState gs;
+				msg >> gs;
+				player.nCurrentPiece = gs.player.nCurrentPiece;
+				player.nCurrentRotation = gs.player.nCurrentRotation;
+				player.nCurrentX = gs.player.nCurrentX;
+				player.nCurrentY = gs.player.nCurrentY;
+				player.nScore = gs.player.nScore;
+				player.Draw(screen, nScreenWidth, nScreenHeight, false);
+				playerUpdate = true;
+
+				rival.nCurrentPiece = gs.rival.nCurrentPiece;
+				rival.nCurrentRotation = gs.rival.nCurrentRotation;
+				rival.nCurrentX = gs.rival.nCurrentX;
+				rival.nCurrentY = gs.rival.nCurrentY;
+				rival.nScore = gs.rival.nScore;
+				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
+				rivalUpdate = true;
+
+			}
+			else if(msg.head.id == MessageType::GStateField){
+				GameStateField gs;
+				msg >> gs;
+				player.nCurrentPiece = gs.player.playerState.nCurrentPiece;
+				player.nCurrentRotation = gs.player.playerState.nCurrentRotation;
+				player.nCurrentX = gs.player.playerState.nCurrentX;
+				player.nCurrentY = gs.player.playerState.nCurrentY;
+				player.nScore = gs.player.playerState.nScore;
+				for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
+					player.pField[i] = gs.player.field[i];
+				}
+				player.Draw(screen, nScreenWidth, nScreenHeight, false);
+				playerUpdate = true;
+
+				rival.nCurrentPiece = gs.rival.playerState.nCurrentPiece;
+				rival.nCurrentRotation = gs.rival.playerState.nCurrentRotation;
+				rival.nCurrentX = gs.rival.playerState.nCurrentX;
+				rival.nCurrentY = gs.rival.playerState.nCurrentY;
+				rival.nScore = gs.rival.playerState.nScore;
+				for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
+					rival.pField[i] = gs.rival.field[i];
+				}
+				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
+				rivalUpdate = true;
+			}
+
 		}
 };
 
@@ -115,8 +157,35 @@ int main(){
 
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-	while(!bGameOver){
+	while(!cl.playerLose && !cl.enemyLose){
 
+		cl.Update(-1);
+
+		if(cl.playerUpdate || cl.rivalUpdate)
+			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
+
+		for (int k = 0; k < 4; k++)							// R   L   D Z
+        	cl.player.bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28Z"[k]))) != 0;
+		
+		if(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() > 50){
+			begin = std::chrono::steady_clock::now();
+
+			if(GetForegroundWindow() != hWnd){
+				for (int k = 0; k < 4; k++)
+					cl.player.bKey[k] = false;
+			}
+
+			Message<MessageType> ms;
+			ms.head = {MessageType::Input, 0};
+
+			InputBody ib;
+			for(int i = 0; i < 4; i++){
+				ib.inputs[i] = cl.player.bKey[i];
+			}
+			ms << ib;
+			cl.Send(ms);
+		}
+		/*
 		cl.Update(-1);
 		if(cl.enemyUpdate){
 			cl.enemyUpdate = false;
@@ -186,13 +255,14 @@ int main(){
 				cl.Send(ms);
 			}
 		}
+		*/
 	}
 
 	cl.Disconnect();
 
 	CloseHandle(hConsole);
 
-	if(bGameOver){
+	if(cl.playerLose){
 		std::cout << "You Lose!!" << endl;
 	}else{
 		std::cout << "You Win!!" << endl;

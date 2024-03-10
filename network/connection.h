@@ -54,6 +54,10 @@ class connection : public std::enable_shared_from_this<connection<T>>{
             
         }
 
+        uint32_t GetId(){
+            return id;
+        }
+
         void Send(const Message<T>& msg){
             asio::post(context, 
                 [this, msg](){

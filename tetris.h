@@ -118,6 +118,8 @@ bool tetris::DoesPieceFit(int nTetromino, int nRotation, int nPosX, int nPosY){
 }
 
 void tetris::HandleInput(){
+	if(!vLines.empty())
+		return;
     nCurrentX += (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
     nCurrentX -= (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? 1 : 0;		
 
@@ -149,18 +151,16 @@ void tetris::Update(bool& bGameOver, bool second){
 			}
 			vLines.clear();
         }
-		//if(!second)
 		clearCounter++;
 		return;
 	}
-	//if(!second)
 	counter++;
 	if(counter >= speed){
 		counter = 0;
 		down = true;
 	}
 
-	HandleInput();
+	//HandleInput();
 		
 	if(down){
 		down = false;
