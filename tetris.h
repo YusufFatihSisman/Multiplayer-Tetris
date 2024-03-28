@@ -62,7 +62,9 @@ class tetris{
         int Rotate(int px, int py, int r);
         bool DoesPieceFit(int nTetromino, int nRotation, int nPosX, int nPosY);
         void HandleInput();
+		void HandleInputVirtually(int tempCurrentPiece, int& tempCurrentX, int& tempCurrentY, int& tempCurrentRotation, bool& tempRotateHold);
         void Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool second);
+		void DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length);
         void Update(bool& bGameOver, bool second = false);
 };
 
@@ -137,6 +139,26 @@ void tetris::HandleInput(){
     }
     else
         bRotateHold = true;
+}
+
+void tetris::HandleInputVirtually(int tempCurrentPiece, int& tempCurrentX, int& tempCurrentY, int& tempCurrentRotation, bool& tempRotateHold){
+	if(!vLines.empty())
+		return;
+    tempCurrentX += (bKey[0] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX + 1, tempCurrentY)) ? 1 : 0;
+    nCurrentX -= (bKey[1] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX - 1, tempCurrentY)) ? 1 : 0;		
+
+    if(bKey[2] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX, tempCurrentY + 1)){
+        tempCurrentY += 1;
+    }
+
+    // Rotate, but latch to stop wild spinning
+    if (bKey[3]){
+        tempCurrentRotation += (tempRotateHold && DoesPieceFit(tempCurrentPiece, tempCurrentRotation + 1, tempCurrentX, tempCurrentY)) ? 1 : 0;
+		tempCurrentRotation %= 4;
+        tempRotateHold = false;
+    }
+    else
+        tempRotateHold = true;
 }
 
 void tetris::Update(bool& bGameOver, bool second){
@@ -233,6 +255,11 @@ void tetris::Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool sec
 		std::cout << "\n";
 	}
     */
+}
+
+void tetris::DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length){
+	std::cout << "DRAW INFO\n";
+	swprintf_s(&screen[22 * nScreenWidth + 2], length+1, L"%s", message);
 }
 
 #endif

@@ -32,6 +32,7 @@ class client : public client_interface<MessageType>{
 		tetris player;
 		tetris rival;
 		bool ready;
+		vector<bool*> inputRequests;
 
 		bool enemyLose = false;
 		bool playerLose = false;
@@ -65,15 +66,70 @@ class client : public client_interface<MessageType>{
 				playerLose = true;
 			}
 			else if(msg.head.id == MessageType::InputResponse){
+
+				
 				PlayerState ps;
 				msg >> ps;
+				//player.nCurrentPiece = ps.nCurrentPiece;
+				//player.nCurrentRotation = ps.nCurrentRotation;
+				//player.nCurrentX = ps.nCurrentX;
+				//player.nCurrentY = ps.nCurrentY;
+				//player.nScore = ps.nScore;
+
+				// RECONCILATION
+				int tempCurrentPiece = ps.nCurrentPiece;
+				int tempCurrentRotation = ps.nCurrentRotation;
+				int tempCurrentX = ps.nCurrentX;
+				int tempCurrentY = ps.nCurrentY;
+				bool tempRotateHold = ps.bRotateHold;
+
+				bool currentRequest[4];
+				for(int i = 0; i < 4; i++){
+                    //player.bKey[i] = inputRequests[0][i];
+					currentRequest[i] = inputRequests[0][i];
+                }
+
+				inputRequests.erase(inputRequests.begin());
+
+				for(int i = 0; i < inputRequests.size(); ++i){
+					for(int j = 0; j < 4; j++){
+                    	player.bKey[j] = inputRequests[i][j];
+                	}
+
+					player.HandleInputVirtually(tempCurrentPiece, tempCurrentX, tempCurrentY, tempCurrentRotation, tempRotateHold);
+				}
+
+				// CHECK IF SAME
+				bool reconcilated = true;
+
+				if(tempCurrentPiece != player.nCurrentPiece)
+					reconcilated = false;
+				if(tempCurrentRotation != player.nCurrentRotation)
+					reconcilated = false;
+				if(tempCurrentX != player.nCurrentX)
+					reconcilated = false;
+				if(tempCurrentY != player.nCurrentY)
+					reconcilated = false;
+				if(tempRotateHold != player.bRotateHold)
+					reconcilated = false;
+
+				if(reconcilated == true){
+					player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"       RECONCILATED", 19);
+					return;
+				}	
+				player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"CANNOT RECONCILATED", 19);
+
+				// RECONCILATION
+
 				player.nCurrentPiece = ps.nCurrentPiece;
 				player.nCurrentRotation = ps.nCurrentRotation;
 				player.nCurrentX = ps.nCurrentX;
 				player.nCurrentY = ps.nCurrentY;
 				player.nScore = ps.nScore;
+
 				player.Draw(screen, nScreenWidth, nScreenHeight, false);
 				playerUpdate = true;
+
 			}
 			else if(msg.head.id == MessageType::RivalState){
 				PlayerState ps;
@@ -104,7 +160,6 @@ class client : public client_interface<MessageType>{
 				rival.nScore = gs.rival.nScore;
 				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				rivalUpdate = true;
-
 			}
 			else if(msg.head.id == MessageType::GStateField){
 				GameStateField gs;
@@ -175,87 +230,25 @@ int main(){
 					cl.player.bKey[k] = false;
 			}
 
-			Message<MessageType> ms;
-			ms.head = {MessageType::Input, 0};
-
-			InputBody ib;
-			for(int i = 0; i < 4; i++){
-				ib.inputs[i] = cl.player.bKey[i];
-			}
-			ms << ib;
-			cl.Send(ms);
-		}
-		/*
-		cl.Update(-1);
-		if(cl.enemyUpdate){
-			cl.enemyUpdate = false;
-			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
-		}
-		if(cl.enemyLose){
-			break;
-		}
-
-		for (int k = 0; k < 4; k++)							// R   L   D Z
-        	cl.player.bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28Z"[k]))) != 0;
-		
-		if(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() > 50){
-			begin = std::chrono::steady_clock::now();
-
-			if(GetForegroundWindow() != hWnd){
-				for (int k = 0; k < 4; k++)
-					cl.player.bKey[k] = false;
-			}
-
-			speedUpCounter++;
-			if(speedUpCounter == speedUp){
-				speedUpCounter = 0;
-				if (cl.player.speed >= 5){
-					cl.player.speed--;
-				} 
-			}
-
-			Message<MessageType> ms;
-			ms.head = {MessageType::Input, 0};
-
-			InputBody ib;
-			for(int i = 0; i < 4; i++){
-				ib.inputs[i] = cl.player.bKey[i];
-			}
-			ib.counter = cl.player.counter;
-			ib.clearCounter = cl.player.clearCounter;
-			ib.speed = cl.player.speed;
-
-			ms << ib;
-
-			cl.Send(ms);
-			int score = cl.player.nScore;
-			cl.player.Update(bGameOver);
-			if(cl.player.nScore - score > 25){
-				Message<MessageType> ms;
-				ms.head = {MessageType::Damage, 0};
-				ms << (cl.player.nScore - score - 25);
-				cl.Send(ms);
-				cl.rival.nScore -= (cl.player.nScore - score - 25);
-				cl.rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-			}
+			// PREDICTION
+			cl.player.HandleInput();
 			cl.player.Draw(screen, nScreenWidth, nScreenHeight, false);
-
-			if(cl.player.counter == 0 && cl.player.clearCounter == 0){
-				Message<MessageType> ms;
-				ms.head = {MessageType::NewPiece, 0};
-				ms << cl.player.nCurrentPiece;
-				cl.Send(ms);
-			}
 			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
 
-			if(bGameOver || cl.player.nScore < -1000){
-				bGameOver = true;
-				Message<MessageType> ms;
-				ms.head = {MessageType::Lose, 0};
-				cl.Send(ms);
+			// SEND REQUEST TO SERVER
+			Message<MessageType> ms;
+			ms.head = {MessageType::Input, 0};
+
+			InputBody ib;
+			for(int i = 0; i < 4; i++){
+				ib.inputs[i] = cl.player.bKey[i];
 			}
+			ms << ib;
+
+			cl.inputRequests.push_back(ib.inputs);
+			cl.Send(ms);
+			
 		}
-		*/
 	}
 
 	cl.Disconnect();

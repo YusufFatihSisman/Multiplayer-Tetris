@@ -25,6 +25,7 @@ struct PlayerState{
     int nCurrentX;
     int nCurrentY;
     int nScore;
+    bool bRotateHold;
 };
     
 struct PlayerStateField{

@@ -113,6 +113,7 @@ class server : public server_interface<MessageType>{
                     player1.nCurrentX,
                     player1.nCurrentY,
                     player1.nScore,
+                    player1.bRotateHold,
                 };
             }else{
                 for(int i = 0; i < 4; i++){
@@ -125,6 +126,7 @@ class server : public server_interface<MessageType>{
                     player2.nCurrentX,
                     player2.nCurrentY,
                     player2.nScore,
+                    player2.bRotateHold,
                 };
             }
             newMsg << ps;
@@ -166,46 +168,58 @@ int main(){
 
     while(1){
         sv.Update();
-        if(sv.playersReady < 2)
-            continue;
-        
-        if(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count() > 50){
-			begin = std::chrono::steady_clock::now();
+        if(sv.playersReady >= 2)
+            break;
+    }
 
-			speedUpCounter++;
-			if(speedUpCounter == speedUp){
-				speedUpCounter = 0;
-				if(sv.player1.speed >= 5)
-					sv.player1.speed--;
-                if(sv.player2.speed >= 5)
-                    sv.player2.speed--;
-			}
+    while(1){
+        //this_thread::sleep_for(50ms);
+        this_thread::sleep_for(300ms);
+        sv.Update();
 
-			int score = sv.player1.nScore;
-			sv.player1.Update(bGameOver1);
-			if(sv.player1.nScore - score > 25)
-				sv.player2.nScore -= (sv.player1.nScore - score - 25);
-			
-            score = sv.player2.nScore;
-			sv.player2.Update(bGameOver2);
-			if(sv.player2.nScore - score > 25)
-				sv.player1.nScore -= (sv.player2.nScore - score - 25);
-
-            sv.SendGameState();
-
-            if(bGameOver1)
-                sv.PLayer1Lose();
-            else if(bGameOver2)
-                sv.Player2Lose();
-            
-            if(!bGameOver1 && !bGameOver2){
-                if(sv.player1.nScore <= -1000 && sv.player1.nScore < sv.player2.nScore)
-                    sv.PLayer1Lose();
-            
-                if(sv.player2.nScore <= -1000 && sv.player2.nScore < sv.player1.nScore)
-                    sv.Player2Lose();
-            }	       
+		speedUpCounter++;
+		if(speedUpCounter == speedUp){
+			speedUpCounter = 0;
+			if(sv.player1.speed >= 5)
+				sv.player1.speed--;
+            if(sv.player2.speed >= 5)
+                sv.player2.speed--;
 		}
+
+		int score = sv.player1.nScore;
+
+        for(int i = 0; i < 6; i++){
+            if(bGameOver1)
+                break;
+            sv.player1.Update(bGameOver1);
+        }
+		if(sv.player1.nScore - score > 25)
+			sv.player2.nScore -= (sv.player1.nScore - score - 25);
+			
+        score = sv.player2.nScore;
+        for(int i = 0; i < 6; i++){
+            if(bGameOver2)
+                break;
+            sv.player2.Update(bGameOver2);
+        }
+		//sv.player2.Update(bGameOver2);
+		if(sv.player2.nScore - score > 25)
+			sv.player1.nScore -= (sv.player2.nScore - score - 25);
+
+        sv.SendGameState();
+
+        if(bGameOver1)
+            sv.PLayer1Lose();
+        else if(bGameOver2)
+            sv.Player2Lose();
+            
+        if(!bGameOver1 && !bGameOver2){
+            if(sv.player1.nScore <= -1000 && sv.player1.nScore < sv.player2.nScore)
+                sv.PLayer1Lose();
+            
+            if(sv.player2.nScore <= -1000 && sv.player2.nScore < sv.player1.nScore)
+                sv.Player2Lose();
+        }	       
     }
 
     return 0;
