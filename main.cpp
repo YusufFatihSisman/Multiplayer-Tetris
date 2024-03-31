@@ -18,8 +18,13 @@
 #include "network/client.h"
 #include "common.h"
 #include <fstream>
+#include <list>
 
 using namespace std;
+
+int reconcilationFailCount = 0;
+ofstream debugFile;
+bool debugOn = false;
 
 int nScreenWidth = 80;			// Console Screen Size X (columns)
 int nScreenHeight = 30;			// Console Screen Size Y (rows)
@@ -32,7 +37,8 @@ class client : public client_interface<MessageType>{
 		tetris player;
 		tetris rival;
 		bool ready;
-		vector<bool*> inputRequests;
+		//vector<bool*> inputRequests;
+		list<InputBody> inputRequests;
 
 		bool enemyLose = false;
 		bool playerLose = false;
@@ -66,15 +72,8 @@ class client : public client_interface<MessageType>{
 				playerLose = true;
 			}
 			else if(msg.head.id == MessageType::InputResponse){
-
-				
 				PlayerState ps;
 				msg >> ps;
-				//player.nCurrentPiece = ps.nCurrentPiece;
-				//player.nCurrentRotation = ps.nCurrentRotation;
-				//player.nCurrentX = ps.nCurrentX;
-				//player.nCurrentY = ps.nCurrentY;
-				//player.nScore = ps.nScore;
 
 				// RECONCILATION
 				int tempCurrentPiece = ps.nCurrentPiece;
@@ -83,19 +82,15 @@ class client : public client_interface<MessageType>{
 				int tempCurrentY = ps.nCurrentY;
 				bool tempRotateHold = ps.bRotateHold;
 
-				bool currentRequest[4];
-				for(int i = 0; i < 4; i++){
-                    //player.bKey[i] = inputRequests[0][i];
-					currentRequest[i] = inputRequests[0][i];
-                }
+				//debugFile << "Server State: "<< tempCurrentRotation << " " << tempCurrentX << " " << tempCurrentY << "\n";
+				//debugFile << "Current Play State: "<< player.nCurrentRotation << " " << player.nCurrentX << " " << player.nCurrentY << "\n";
 
-				inputRequests.erase(inputRequests.begin());
+				inputRequests.pop_front();
 
-				for(int i = 0; i < inputRequests.size(); ++i){
+				for (auto input : inputRequests){
 					for(int j = 0; j < 4; j++){
-                    	player.bKey[j] = inputRequests[i][j];
-                	}
-
+						player.bKey[j] = input.inputs[j];
+					}
 					player.HandleInputVirtually(tempCurrentPiece, tempCurrentX, tempCurrentY, tempCurrentRotation, tempRotateHold);
 				}
 
@@ -114,18 +109,41 @@ class client : public client_interface<MessageType>{
 					reconcilated = false;
 
 				if(reconcilated == true){
-					player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"       RECONCILATED", 19);
+					player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"       RECONCILATED", 19, reconcilationFailCount);
 					return;
 				}	
-				player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"CANNOT RECONCILATED", 19);
+				reconcilationFailCount++;
+				player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"CANNOT RECONCILATED", 19, reconcilationFailCount);
 
-				// RECONCILATION
-
+				
+				if(debugOn){
+					debugFile << "input size: " << inputRequests.size() << "\n";
+					for (auto input : inputRequests){
+						for(int j = 0; j < 4; j++){
+							debugFile << input.inputs[j] <<  " ";
+						}
+						debugFile << "\n";
+					}
+					
+					debugFile << "Server State: "<< ps.nCurrentRotation << " " << ps.nCurrentX << " " << ps.nCurrentY << "\n";
+					debugFile << "Current Play State: "<< player.nCurrentRotation << " " << player.nCurrentX << " " << player.nCurrentY << "\n";
+					debugFile << "Temp State: "<< tempCurrentRotation << " " << tempCurrentX << " " << tempCurrentY << "\n";
+				}
+				
+				// REAPPLY INPUTS
 				player.nCurrentPiece = ps.nCurrentPiece;
 				player.nCurrentRotation = ps.nCurrentRotation;
 				player.nCurrentX = ps.nCurrentX;
 				player.nCurrentY = ps.nCurrentY;
 				player.nScore = ps.nScore;
+				player.bRotateHold = ps.bRotateHold;
+
+				for (auto input : inputRequests){
+					for(int j = 0; j < 4; j++){
+						player.bKey[j] = input.inputs[j];
+					}
+					player.HandleInput();
+				}
 
 				player.Draw(screen, nScreenWidth, nScreenHeight, false);
 				playerUpdate = true;
@@ -190,7 +208,15 @@ class client : public client_interface<MessageType>{
 		}
 };
 
-int main(){
+int main(int argc, char* argv[]){
+
+	if(argc == 2){
+		debugFile = ofstream(argv[1]);
+		debugOn = true;
+	}else{
+		debugOn = false;
+	}
+
 	HWND hWnd = GetForegroundWindow();
 	for (int i = 0; i < nScreenWidth*nScreenHeight; i++) screen[i] = L' ';
 	DWORD dwBytesWritten = 0;
@@ -230,6 +256,14 @@ int main(){
 					cl.player.bKey[k] = false;
 			}
 
+			if(debugOn){
+				debugFile << "Pressed input:  ";
+				for(int k = 0; k < 4; ++k){
+					debugFile << cl.player.bKey[k] << " ";
+				}
+				debugFile << "\n";
+			}
+
 			// PREDICTION
 			cl.player.HandleInput();
 			cl.player.Draw(screen, nScreenWidth, nScreenHeight, false);
@@ -242,18 +276,19 @@ int main(){
 			InputBody ib;
 			for(int i = 0; i < 4; i++){
 				ib.inputs[i] = cl.player.bKey[i];
+				
 			}
+			cl.inputRequests.push_back(ib);
 			ms << ib;
-
-			cl.inputRequests.push_back(ib.inputs);
 			cl.Send(ms);
-			
 		}
 	}
 
 	cl.Disconnect();
 
 	CloseHandle(hConsole);
+
+	debugFile.close();
 
 	if(cl.playerLose){
 		std::cout << "You Lose!!" << endl;

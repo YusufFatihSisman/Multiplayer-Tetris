@@ -19,6 +19,8 @@ class tetris{
         bool down;
         bool bRotateHold;
 
+		bool ready;
+
         int speed;
 	    int counter;
 
@@ -37,6 +39,7 @@ class tetris{
             nCurrentY = 0;
             down = false;
             bRotateHold = true;
+			ready = true;
 
             speed = 20;
 	        counter = 0;
@@ -64,9 +67,16 @@ class tetris{
         void HandleInput();
 		void HandleInputVirtually(int tempCurrentPiece, int& tempCurrentX, int& tempCurrentY, int& tempCurrentRotation, bool& tempRotateHold);
         void Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool second);
-		void DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length);
+		void DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length, int count);
         void Update(bool& bGameOver, bool second = false);
+		bool IsReady();
 };
+
+bool tetris::IsReady(){
+	if(counter == 0)
+		return false;
+	return true;
+}
 
 int tetris::Rotate(int px, int py, int r){
 	int pi = 0;
@@ -122,6 +132,8 @@ bool tetris::DoesPieceFit(int nTetromino, int nRotation, int nPosX, int nPosY){
 void tetris::HandleInput(){
 	if(!vLines.empty())
 		return;
+	if(!ready)
+		return;
     nCurrentX += (bKey[0] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX + 1, nCurrentY)) ? 1 : 0;
     nCurrentX -= (bKey[1] && DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX - 1, nCurrentY)) ? 1 : 0;		
 
@@ -144,8 +156,10 @@ void tetris::HandleInput(){
 void tetris::HandleInputVirtually(int tempCurrentPiece, int& tempCurrentX, int& tempCurrentY, int& tempCurrentRotation, bool& tempRotateHold){
 	if(!vLines.empty())
 		return;
+	if(!ready)
+		return;
     tempCurrentX += (bKey[0] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX + 1, tempCurrentY)) ? 1 : 0;
-    nCurrentX -= (bKey[1] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX - 1, tempCurrentY)) ? 1 : 0;		
+    tempCurrentX -= (bKey[1] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX - 1, tempCurrentY)) ? 1 : 0;		
 
     if(bKey[2] && DoesPieceFit(tempCurrentPiece, tempCurrentRotation, tempCurrentX, tempCurrentY + 1)){
         tempCurrentY += 1;
@@ -176,6 +190,7 @@ void tetris::Update(bool& bGameOver, bool second){
 		clearCounter++;
 		return;
 	}
+	ready = true;
 	counter++;
 	if(counter >= speed){
 		counter = 0;
@@ -221,6 +236,8 @@ void tetris::Update(bool& bGameOver, bool second){
 			nCurrentRotation = 0;
 			nCurrentPiece = rand() % 7;
 
+			ready = false;
+
 			// If piece does not fit straight away, game over!
 			bGameOver = !DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY);
 		}
@@ -257,9 +274,8 @@ void tetris::Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool sec
     */
 }
 
-void tetris::DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length){
-	std::cout << "DRAW INFO\n";
-	swprintf_s(&screen[22 * nScreenWidth + 2], length+1, L"%s", message);
+void tetris::DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length, int count){
+	swprintf_s(&screen[22 * nScreenWidth + 2], length+7, L"%s: %4d", message, count);
 }
 
 #endif

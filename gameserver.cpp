@@ -106,6 +106,7 @@ class server : public server_interface<MessageType>{
                 for(int i = 0; i < 4; i++){
                     player1.bKey[i] = ib.inputs[i];
                 }
+                //if(player1.IsReady())
                 player1.HandleInput();
                 ps = {
                     player1.nCurrentPiece,
@@ -119,6 +120,7 @@ class server : public server_interface<MessageType>{
                 for(int i = 0; i < 4; i++){
                     player2.bKey[i] = ib.inputs[i];
                 }
+                //if(player2.IsReady())
                 player2.HandleInput();
                 ps = {
                     player2.nCurrentPiece,
@@ -219,7 +221,9 @@ int main(){
             
             if(sv.player2.nScore <= -1000 && sv.player2.nScore < sv.player1.nScore)
                 sv.Player2Lose();
-        }	       
+        }
+
+        //sv.Update();	       
     }
 
     return 0;
