@@ -11,6 +11,7 @@ enum MessageType : uint32_t{
     Win,
     Lose,
     RivalState,
+    RivalStateInBetween,
     GState,
     GStateField,
 };
@@ -28,6 +29,12 @@ struct PlayerState{
     int nScore;
     bool bRotateHold;
     int lastRequest;
+};
+
+struct PlayerStateInBetween{
+    int nCurrentX;
+    int nCurrentY;
+    int nCurrentRotation;
 };
     
 struct PlayerStateField{

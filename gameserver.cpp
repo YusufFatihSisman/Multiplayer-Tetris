@@ -3,6 +3,7 @@
 #include "network/server.h"
 #include "common.h"
 #include "tetris.h"
+#include <queue>
 
 using namespace std;
 
@@ -20,6 +21,9 @@ class server : public server_interface<MessageType>{
 
         uint32_t p1Id;
         uint32_t p2Id;
+
+        queue<PlayerStateInBetween> player1StatesInBetween;
+        queue<PlayerStateInBetween> player2StatesInBetween;
 
         server(){
             player1 = tetris();
@@ -61,11 +65,29 @@ class server : public server_interface<MessageType>{
                 gs2.rival.field[i] = player1.pField[i];
 			}
 
+            // Send Rival states in between
+            while(player2StatesInBetween.size() > 1){
+                Message<MessageType> msg;
+                msg.head = {MessageType::RivalStateInBetween, 0};
+                msg << player2StatesInBetween.front();
+                player2StatesInBetween.pop();
+                Send(p1Id, msg);
+            }
+            player2StatesInBetween.pop();
+            // Send gamestate
             Message<MessageType> p1Msg;
             p1Msg.head = {MessageType::GStateField, 0};
             p1Msg << gs1;
             Send(p1Id, p1Msg);
 
+            while(player1StatesInBetween.size() > 1){
+                Message<MessageType> msg;
+                msg.head = {MessageType::RivalStateInBetween, 0};
+                msg << player1StatesInBetween.front();
+                player1StatesInBetween.pop();
+                Send(p2Id, msg);
+            }
+            player1StatesInBetween.pop();
             Message<MessageType> p2Msg;
             p2Msg.head = {MessageType::GStateField, 0};
             p2Msg << gs2;
@@ -110,10 +132,17 @@ class server : public server_interface<MessageType>{
 
             if(client->GetId() == p1Id){
                 player1LastInput = ib.requestOrder;
+                bool zeroInput = true;
                 for(int i = 0; i < 4; i++){
                     player1.bKey[i] = ib.inputs[i];
+                    if(!ib.inputs[i])
+                        zeroInput = false;
                 }
                 player1.HandleInput();
+                if(!zeroInput){
+                    PlayerStateInBetween ps = {player1.nCurrentX, player1.nCurrentY, player1.nCurrentRotation};
+                    player1StatesInBetween.push(ps);
+                }
                 /*ps = {
                     player1.nCurrentPiece,
                     player1.nCurrentRotation,
@@ -124,10 +153,17 @@ class server : public server_interface<MessageType>{
                 };*/
             }else{
                 player2LastInput = ib.requestOrder;
+                bool zeroInput = true;
                 for(int i = 0; i < 4; i++){
                     player2.bKey[i] = ib.inputs[i];
+                    if(!ib.inputs[i])
+                        zeroInput = false;
                 }
                 player2.HandleInput();
+                if(!zeroInput){
+                    PlayerStateInBetween ps = {player2.nCurrentX, player2.nCurrentY, player2.nCurrentRotation};
+                    player2StatesInBetween.push(ps);
+                }
                 /*ps = {
                     player2.nCurrentPiece,
                     player2.nCurrentRotation,
