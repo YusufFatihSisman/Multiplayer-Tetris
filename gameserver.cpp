@@ -15,6 +15,9 @@ class server : public server_interface<MessageType>{
         tetris player1;
 		tetris player2;
 
+        int player1LastInput = -1;
+        int player2LastInput = -1;
+
         uint32_t p1Id;
         uint32_t p2Id;
 
@@ -43,16 +46,16 @@ class server : public server_interface<MessageType>{
             GameStateField gs1;
             GameStateField gs2;
 
-            gs1.player.playerState = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore};
-            gs2.player.playerState = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore};
+            gs1.player.playerState = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore, player1.bRotateHold, player1LastInput};
+            gs2.player.playerState = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore, player2.bRotateHold, player2LastInput};
 
             for(int i = 0; i < player1.nFieldWidth * player1.nFieldHeight; i++){
 				gs1.player.field[i] = player1.pField[i];
                 gs2.player.field[i] = player2.pField[i];
 			}
 
-            gs1.rival.playerState = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore};
-            gs2.rival.playerState = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore};
+            gs1.rival.playerState = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore, player2.bRotateHold, player2LastInput};
+            gs2.rival.playerState = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore, player1.bRotateHold, player1LastInput};
             for(int i = 0; i < player2.nFieldWidth * player2.nFieldHeight; i++){
 				gs1.rival.field[i] = player2.pField[i];
                 gs2.rival.field[i] = player1.pField[i];
@@ -67,6 +70,9 @@ class server : public server_interface<MessageType>{
             p2Msg.head = {MessageType::GStateField, 0};
             p2Msg << gs2;
             Send(p2Id, p2Msg);
+
+            player1LastInput = -1;
+            player2LastInput = -1;
         }
 
 	protected:
@@ -98,43 +104,43 @@ class server : public server_interface<MessageType>{
         void HandleInputMessage(std::shared_ptr<connection<MessageType>> client, Message<MessageType>& msg){
             InputBody ib;
             msg >> ib;
-            Message<MessageType> newMsg;
-            newMsg.head = {MessageType::InputResponse, 0};
-            PlayerState ps;
+            //Message<MessageType> newMsg;
+            //newMsg.head = {MessageType::InputResponse, 0};
+            //PlayerState ps;
 
             if(client->GetId() == p1Id){
+                player1LastInput = ib.requestOrder;
                 for(int i = 0; i < 4; i++){
                     player1.bKey[i] = ib.inputs[i];
                 }
-                //if(player1.IsReady())
                 player1.HandleInput();
-                ps = {
+                /*ps = {
                     player1.nCurrentPiece,
                     player1.nCurrentRotation,
                     player1.nCurrentX,
                     player1.nCurrentY,
                     player1.nScore,
                     player1.bRotateHold,
-                };
+                };*/
             }else{
+                player2LastInput = ib.requestOrder;
                 for(int i = 0; i < 4; i++){
                     player2.bKey[i] = ib.inputs[i];
                 }
-                //if(player2.IsReady())
                 player2.HandleInput();
-                ps = {
+                /*ps = {
                     player2.nCurrentPiece,
                     player2.nCurrentRotation,
                     player2.nCurrentX,
                     player2.nCurrentY,
                     player2.nScore,
                     player2.bRotateHold,
-                };
+                };*/
             }
-            newMsg << ps;
-            Send(client, newMsg);
-            newMsg.head.id = MessageType::RivalState;
-            SendAll(newMsg, client);
+            //newMsg << ps;
+            //Send(client, newMsg);
+            //newMsg.head.id = MessageType::RivalState;
+            //SendAll(newMsg, client);
         }
 
         void HandleReadyMessage(std::shared_ptr<connection<MessageType>> client){

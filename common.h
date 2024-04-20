@@ -17,6 +17,7 @@ enum MessageType : uint32_t{
 
 struct InputBody{
     bool inputs[4];
+    int requestOrder;
 };
 
 struct PlayerState{
@@ -26,6 +27,7 @@ struct PlayerState{
     int nCurrentY;
     int nScore;
     bool bRotateHold;
+    int lastRequest;
 };
     
 struct PlayerStateField{

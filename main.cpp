@@ -39,6 +39,9 @@ class client : public client_interface<MessageType>{
 		bool ready;
 		//vector<bool*> inputRequests;
 		list<InputBody> inputRequests;
+		queue<PlayerState> enemyStates;
+
+		int inputRequest = 0;
 
 		bool enemyLose = false;
 		bool playerLose = false;
@@ -152,6 +155,9 @@ class client : public client_interface<MessageType>{
 			else if(msg.head.id == MessageType::RivalState){
 				PlayerState ps;
 				msg >> ps;
+				
+				//enemyStates.push(ps);
+				
 				rival.nCurrentPiece = ps.nCurrentPiece;
 				rival.nCurrentRotation = ps.nCurrentRotation;
 				rival.nCurrentX = ps.nCurrentX;
@@ -159,6 +165,7 @@ class client : public client_interface<MessageType>{
 				rival.nScore = ps.nScore;
 				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				rivalUpdate = true;
+				
 			}
 			else if(msg.head.id == MessageType::GState){
 				GameState gs;
@@ -171,6 +178,8 @@ class client : public client_interface<MessageType>{
 				player.Draw(screen, nScreenWidth, nScreenHeight, false);
 				playerUpdate = true;
 
+				//enemyStates.push(gs.rival);
+				
 				rival.nCurrentPiece = gs.rival.nCurrentPiece;
 				rival.nCurrentRotation = gs.rival.nCurrentRotation;
 				rival.nCurrentX = gs.rival.nCurrentX;
@@ -178,21 +187,51 @@ class client : public client_interface<MessageType>{
 				rival.nScore = gs.rival.nScore;
 				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
 				rivalUpdate = true;
+				
 			}
 			else if(msg.head.id == MessageType::GStateField){
 				GameStateField gs;
 				msg >> gs;
-				player.nCurrentPiece = gs.player.playerState.nCurrentPiece;
-				player.nCurrentRotation = gs.player.playerState.nCurrentRotation;
-				player.nCurrentX = gs.player.playerState.nCurrentX;
-				player.nCurrentY = gs.player.playerState.nCurrentY;
-				player.nScore = gs.player.playerState.nScore;
-				for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
-					player.pField[i] = gs.player.field[i];
-				}
-				player.Draw(screen, nScreenWidth, nScreenHeight, false);
-				playerUpdate = true;
 
+				PlayerState ps = gs.player.playerState;
+
+				if(ps.lastRequest == -1){
+					player.nCurrentPiece = gs.player.playerState.nCurrentPiece;
+					player.nCurrentRotation = gs.player.playerState.nCurrentRotation;
+					player.nCurrentX = gs.player.playerState.nCurrentX;
+					player.nCurrentY = gs.player.playerState.nCurrentY;
+					player.nScore = gs.player.playerState.nScore;
+					player.bRotateHold = gs.player.playerState.bRotateHold;
+					for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
+						player.pField[i] = gs.player.field[i];
+					}
+					player.Draw(screen, nScreenWidth, nScreenHeight, false);
+					playerUpdate = true;
+				}
+				else if(!Reconcilation(ps)){
+					// REAPPLY INPUTS
+					player.nCurrentPiece = ps.nCurrentPiece;
+					player.nCurrentRotation = ps.nCurrentRotation;
+					player.nCurrentX = ps.nCurrentX;
+					player.nCurrentY = ps.nCurrentY;
+					player.nScore = ps.nScore;
+					player.bRotateHold = ps.bRotateHold;
+
+					for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
+						player.pField[i] = gs.player.field[i];
+					}
+
+					for (auto input : inputRequests){
+						for(int j = 0; j < 4; j++){
+							player.bKey[j] = input.inputs[j];
+						}
+						player.HandleInput();
+					}
+
+					player.Draw(screen, nScreenWidth, nScreenHeight, false);
+					playerUpdate = true;
+				}
+				
 				rival.nCurrentPiece = gs.rival.playerState.nCurrentPiece;
 				rival.nCurrentRotation = gs.rival.playerState.nCurrentRotation;
 				rival.nCurrentX = gs.rival.playerState.nCurrentX;
@@ -205,6 +244,92 @@ class client : public client_interface<MessageType>{
 				rivalUpdate = true;
 			}
 
+		}
+	private:
+		bool Reconcilation(PlayerState ps){
+			// ps is server state
+
+			// RECONCILATION
+			int tempCurrentPiece = ps.nCurrentPiece;
+			int tempCurrentRotation = ps.nCurrentRotation;
+			int tempCurrentX = ps.nCurrentX;
+			int tempCurrentY = ps.nCurrentY;
+			bool tempRotateHold = ps.bRotateHold;
+
+			std::list<InputBody>::iterator i = inputRequests.begin();
+
+			while(i != inputRequests.end()){
+				if(i->requestOrder <= ps.lastRequest)
+					inputRequests.pop_front();
+				else
+					break;
+				i = inputRequests.begin();
+			}
+			/*for(auto input : inputRequests){
+				if(input.requestOrder <= ps.lastRequest)
+					inputRequests.pop_front();
+			}*/
+
+			for (auto input : inputRequests){
+				for(int j = 0; j < 4; j++){
+					player.bKey[j] = input.inputs[j];
+				}
+				player.HandleInputVirtually(tempCurrentPiece, tempCurrentX, tempCurrentY, tempCurrentRotation, tempRotateHold);
+			}
+
+			// CHECK IF SAME
+			bool reconcilated = true;
+
+			if(tempCurrentPiece != player.nCurrentPiece)
+				reconcilated = false;
+			if(tempCurrentRotation != player.nCurrentRotation)
+				reconcilated = false;
+			if(tempCurrentX != player.nCurrentX)
+				reconcilated = false;
+			if(tempCurrentY != player.nCurrentY)
+				reconcilated = false;
+			//if(tempRotateHold != player.bRotateHold)
+			//	reconcilated = false;
+
+			if(reconcilated == true){
+				player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"       RECONCILATED", 19, reconcilationFailCount);
+				return true;
+			}	
+			reconcilationFailCount++;
+			player.DrawInfo(screen, nScreenWidth, nScreenHeight, L"CANNOT RECONCILATED", 19, reconcilationFailCount);
+
+			if(debugOn){
+				debugFile << "input size: " << inputRequests.size() << "\n";
+				for (auto input : inputRequests){
+					for(int j = 0; j < 4; j++){
+						debugFile << input.inputs[j] <<  " ";
+					}
+					debugFile << "\n";
+				}	
+				debugFile << "Server State: "<< ps.nCurrentRotation << " " << ps.nCurrentX << " " << ps.nCurrentY << "\n";
+				debugFile << "Current Play State: "<< player.nCurrentRotation << " " << player.nCurrentX << " " << player.nCurrentY << "\n";
+				debugFile << "Temp State: "<< tempCurrentRotation << " " << tempCurrentX << " " << tempCurrentY << "\n";
+			}
+			
+			return false;
+
+			// REAPPLY INPUTS
+			player.nCurrentPiece = ps.nCurrentPiece;
+			player.nCurrentRotation = ps.nCurrentRotation;
+			player.nCurrentX = ps.nCurrentX;
+			player.nCurrentY = ps.nCurrentY;
+			player.nScore = ps.nScore;
+			player.bRotateHold = ps.bRotateHold;
+
+			for (auto input : inputRequests){
+				for(int j = 0; j < 4; j++){
+					player.bKey[j] = input.inputs[j];
+				}
+				player.HandleInput();
+			}
+
+			player.Draw(screen, nScreenWidth, nScreenHeight, false);
+			playerUpdate = true;
 		}
 };
 
@@ -242,8 +367,12 @@ int main(int argc, char* argv[]){
 
 		cl.Update(-1);
 
-		if(cl.playerUpdate || cl.rivalUpdate)
+		if(cl.playerUpdate || cl.rivalUpdate){
+			cl.playerUpdate = false;
+			cl.rivalUpdate = false;
 			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
+		}
+			
 
 		for (int k = 0; k < 4; k++)							// R   L   D Z
         	cl.player.bKey[k] = (0x8000 & GetAsyncKeyState((unsigned char)("\x27\x25\x28Z"[k]))) != 0;
@@ -267,6 +396,19 @@ int main(int argc, char* argv[]){
 			// PREDICTION
 			cl.player.HandleInput();
 			cl.player.Draw(screen, nScreenWidth, nScreenHeight, false);
+
+
+			/*if(!cl.enemyStates.empty()){
+				PlayerState ps = cl.enemyStates.front();
+				cl.enemyStates.pop();
+				
+				cl.rival.nCurrentPiece = ps.nCurrentPiece;
+				cl.rival.nCurrentRotation = ps.nCurrentRotation;
+				cl.rival.nCurrentX = ps.nCurrentX;
+				cl.rival.nCurrentY = ps.nCurrentY;
+				cl.rival.nScore = ps.nScore;
+				cl.rival.Draw(screen, nScreenWidth, nScreenHeight, true);
+			}*/
 			WriteConsoleOutputCharacterW(hConsole, screen, nScreenWidth * nScreenHeight, { 0,0 }, &dwBytesWritten);
 
 			// SEND REQUEST TO SERVER
@@ -276,8 +418,8 @@ int main(int argc, char* argv[]){
 			InputBody ib;
 			for(int i = 0; i < 4; i++){
 				ib.inputs[i] = cl.player.bKey[i];
-				
 			}
+			ib.requestOrder = cl.inputRequest++;
 			cl.inputRequests.push_back(ib);
 			ms << ib;
 			cl.Send(ms);
