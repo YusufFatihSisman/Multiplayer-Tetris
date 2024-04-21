@@ -47,23 +47,9 @@ class server : public server_interface<MessageType>{
         }
 
         void SendGameState(){
-            GameStateField gs1;
-            GameStateField gs2;
 
-            gs1.player.playerState = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore, player1.bRotateHold, player1LastInput};
-            gs2.player.playerState = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore, player2.bRotateHold, player2LastInput};
-
-            for(int i = 0; i < player1.nFieldWidth * player1.nFieldHeight; i++){
-				gs1.player.field[i] = player1.pField[i];
-                gs2.player.field[i] = player2.pField[i];
-			}
-
-            gs1.rival.playerState = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore, player2.bRotateHold, player2LastInput};
-            gs2.rival.playerState = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore, player1.bRotateHold, player1LastInput};
-            for(int i = 0; i < player2.nFieldWidth * player2.nFieldHeight; i++){
-				gs1.rival.field[i] = player2.pField[i];
-                gs2.rival.field[i] = player1.pField[i];
-			}
+            PlayerState ps1 = {player1.nCurrentPiece, player1.nCurrentRotation, player1.nCurrentX, player1.nCurrentY, player1.nScore, player1.bRotateHold, player1LastInput};
+            PlayerState ps2 = {player2.nCurrentPiece, player2.nCurrentRotation, player2.nCurrentX, player2.nCurrentY, player2.nScore, player2.bRotateHold, player2LastInput};
 
             // Send Rival states in between
             while(player2StatesInBetween.size() > 1){
@@ -74,12 +60,6 @@ class server : public server_interface<MessageType>{
                 Send(p1Id, msg);
             }
             player2StatesInBetween.pop();
-            // Send gamestate
-            Message<MessageType> p1Msg;
-            p1Msg.head = {MessageType::GStateField, 0};
-            p1Msg << gs1;
-            Send(p1Id, p1Msg);
-
             while(player1StatesInBetween.size() > 1){
                 Message<MessageType> msg;
                 msg.head = {MessageType::RivalStateInBetween, 0};
@@ -88,11 +68,87 @@ class server : public server_interface<MessageType>{
                 Send(p2Id, msg);
             }
             player1StatesInBetween.pop();
-            Message<MessageType> p2Msg;
-            p2Msg.head = {MessageType::GStateField, 0};
-            p2Msg << gs2;
-            Send(p2Id, p2Msg);
+            
+            if(player1.fieldUpdate){
+                PlayerStateField psf1;
+                psf1.playerState = ps1;
+                if(player2.fieldUpdate){ // G_F
+                    PlayerStateField psf2;
+                    psf2.playerState = ps2;
+                    for(int i = 0; i < player2.nFieldWidth * player2.nFieldHeight; i++){
+                        psf1.field[i] = player1.pField[i];
+                        psf2.field[i] = player2.pField[i];
+                    }
+                    // SEND MESSAGE
+                    Message<MessageType> p1Msg;
+                    p1Msg.head = {MessageType::GStateField, 0};
+                    p1Msg << psf1;
+                    p1Msg << psf2;
+                    Send(p1Id, p1Msg);
 
+                    Message<MessageType> p2Msg;
+                    p2Msg.head = {MessageType::GStateField, 0};
+                    p2Msg << psf2;
+                    p2Msg << psf1;
+                    Send(p2Id, p2Msg);
+                }
+                else{ // G_1_0
+                    for(int i = 0; i < player2.nFieldWidth * player2.nFieldHeight; i++){
+                        psf1.field[i] = player1.pField[i];
+                    }
+                    // SEND MESSAGE
+                    Message<MessageType> p1Msg;
+                    p1Msg.head = {MessageType::GStateField_1_0, 0};
+                    p1Msg << psf1;
+                    p1Msg << ps2;
+                    Send(p1Id, p1Msg);
+
+                    Message<MessageType> p2Msg;
+                    p2Msg.head = {MessageType::GStateField_0_1, 0};
+                    p2Msg << ps2;
+                    p2Msg << psf1;
+                    Send(p2Id, p2Msg);
+                }
+            }
+            else{
+                if(player2.fieldUpdate){ // G_0_1
+                    PlayerStateField psf2;
+                    psf2.playerState = ps2;
+                    for(int i = 0; i < player2.nFieldWidth * player2.nFieldHeight; i++){
+                        psf2.field[i] = player2.pField[i];
+                    }
+                    // SEND MESSAGE
+                    Message<MessageType> p1Msg;
+                    p1Msg.head = {MessageType::GStateField_0_1, 0};
+                    p1Msg << ps1;
+                    p1Msg << psf2;
+                    Send(p1Id, p1Msg);
+
+                    Message<MessageType> p2Msg;
+                    p2Msg.head = {MessageType::GStateField_1_0, 0};
+                    p2Msg << psf2;
+                    p2Msg << ps1;
+                    Send(p2Id, p2Msg);
+                }
+                else{// G_S
+                    // SEND MESSAGE
+                    Message<MessageType> p1Msg;
+                    p1Msg.head = {MessageType::GState, 0};
+                    p1Msg << ps1;
+                    p1Msg << ps2;
+                    Send(p1Id, p1Msg);
+
+                    Message<MessageType> p2Msg;
+                    p2Msg.head = {MessageType::GState, 0};
+                    p2Msg << ps2;
+                    p2Msg << ps1;
+                    Send(p2Id, p2Msg);
+                }
+            }
+
+            player1.fieldUpdate = false;
+            player2.fieldUpdate = false;
+           
             player1LastInput = -1;
             player2LastInput = -1;
         }
@@ -126,9 +182,6 @@ class server : public server_interface<MessageType>{
         void HandleInputMessage(std::shared_ptr<connection<MessageType>> client, Message<MessageType>& msg){
             InputBody ib;
             msg >> ib;
-            //Message<MessageType> newMsg;
-            //newMsg.head = {MessageType::InputResponse, 0};
-            //PlayerState ps;
 
             if(client->GetId() == p1Id){
                 player1LastInput = ib.requestOrder;
@@ -143,14 +196,6 @@ class server : public server_interface<MessageType>{
                     PlayerStateInBetween ps = {player1.nCurrentX, player1.nCurrentY, player1.nCurrentRotation};
                     player1StatesInBetween.push(ps);
                 }
-                /*ps = {
-                    player1.nCurrentPiece,
-                    player1.nCurrentRotation,
-                    player1.nCurrentX,
-                    player1.nCurrentY,
-                    player1.nScore,
-                    player1.bRotateHold,
-                };*/
             }else{
                 player2LastInput = ib.requestOrder;
                 bool zeroInput = true;
@@ -164,31 +209,13 @@ class server : public server_interface<MessageType>{
                     PlayerStateInBetween ps = {player2.nCurrentX, player2.nCurrentY, player2.nCurrentRotation};
                     player2StatesInBetween.push(ps);
                 }
-                /*ps = {
-                    player2.nCurrentPiece,
-                    player2.nCurrentRotation,
-                    player2.nCurrentX,
-                    player2.nCurrentY,
-                    player2.nScore,
-                    player2.bRotateHold,
-                };*/
             }
-            //newMsg << ps;
-            //Send(client, newMsg);
-            //newMsg.head.id = MessageType::RivalState;
-            //SendAll(newMsg, client);
         }
 
         void HandleReadyMessage(std::shared_ptr<connection<MessageType>> client){
             Message<MessageType> newMsg;
             newMsg.head = {MessageType::Start, 0};
             SendAll(newMsg);
-            //newMsg << randSeed;
-            //SendAll(newMsg, client);
-            //newMsg >> randSeed;
-            //randSeed += 1;
-            // << randSeed;
-            //Send(client, newMsg);
         }
 
         void HandleLoseMessage(std::shared_ptr<connection<MessageType>> client){
@@ -217,8 +244,7 @@ int main(){
     }
 
     while(1){
-        //this_thread::sleep_for(50ms);
-        this_thread::sleep_for(300ms);
+        this_thread::sleep_for(200ms);
         sv.Update();
 
 		speedUpCounter++;
@@ -232,7 +258,7 @@ int main(){
 
 		int score = sv.player1.nScore;
 
-        for(int i = 0; i < 6; i++){
+        for(int i = 0; i < 4; i++){
             if(bGameOver1)
                 break;
             sv.player1.Update(bGameOver1);
@@ -241,12 +267,11 @@ int main(){
 			sv.player2.nScore -= (sv.player1.nScore - score - 25);
 			
         score = sv.player2.nScore;
-        for(int i = 0; i < 6; i++){
+        for(int i = 0; i < 4; i++){
             if(bGameOver2)
                 break;
             sv.player2.Update(bGameOver2);
         }
-		//sv.player2.Update(bGameOver2);
 		if(sv.player2.nScore - score > 25)
 			sv.player1.nScore -= (sv.player2.nScore - score - 25);
 
@@ -264,8 +289,7 @@ int main(){
             if(sv.player2.nScore <= -1000 && sv.player2.nScore < sv.player1.nScore)
                 sv.Player2Lose();
         }
-
-        //sv.Update();	       
+    
     }
 
     return 0;

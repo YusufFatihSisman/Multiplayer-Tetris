@@ -7,13 +7,13 @@ enum MessageType : uint32_t{
     Ready,
     Start,
     Input,
-    InputResponse,
     Win,
     Lose,
-    RivalState,
     RivalStateInBetween,
     GState,
     GStateField,
+    GStateField_1_0,
+    GStateField_0_1,
 };
 
 struct InputBody{
@@ -40,16 +40,6 @@ struct PlayerStateInBetween{
 struct PlayerStateField{
     unsigned char field[216];
     PlayerState playerState;
-};
-
-struct GameState{
-    PlayerState player;
-    PlayerState rival;
-};
-
-struct GameStateField{
-    PlayerStateField player;
-    PlayerStateField rival;
 };
 
 #endif

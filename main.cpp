@@ -32,7 +32,6 @@ int nFieldWidth = 12;
 int nFieldHeight = 18;
 wchar_t *screen = new wchar_t[nScreenWidth*nScreenHeight];
 
-
 struct EnemyState{
 	PlayerStateField psf;
 	bool intermediate;
@@ -43,9 +42,7 @@ class client : public client_interface<MessageType>{
 		tetris player;
 		tetris rival;
 		bool ready;
-		//vector<bool*> inputRequests;
 		list<InputBody> inputRequests;
-		//queue<PlayerState> enemyStates;
 		queue<EnemyState> enemyStates;
 
 		int inputRequest = 0;
@@ -81,21 +78,6 @@ class client : public client_interface<MessageType>{
 			else if(msg.head.id == MessageType::Lose){
 				playerLose = true;
 			}
-			else if(msg.head.id == MessageType::RivalState){
-				PlayerState ps;
-				msg >> ps;
-				
-				//enemyStates.push(ps);
-				
-				rival.nCurrentPiece = ps.nCurrentPiece;
-				rival.nCurrentRotation = ps.nCurrentRotation;
-				rival.nCurrentX = ps.nCurrentX;
-				rival.nCurrentY = ps.nCurrentY;
-				rival.nScore = ps.nScore;
-				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-				rivalUpdate = true;
-				
-			}
 			else if(msg.head.id == MessageType::RivalStateInBetween){
 				PlayerStateInBetween ps;
 				msg >> ps;
@@ -109,92 +91,120 @@ class client : public client_interface<MessageType>{
 				enemyStates.push(es);
 			}
 			else if(msg.head.id == MessageType::GState){
-				GameState gs;
-				msg >> gs;
-				player.nCurrentPiece = gs.player.nCurrentPiece;
-				player.nCurrentRotation = gs.player.nCurrentRotation;
-				player.nCurrentX = gs.player.nCurrentX;
-				player.nCurrentY = gs.player.nCurrentY;
-				player.nScore = gs.player.nScore;
-				player.Draw(screen, nScreenWidth, nScreenHeight, false);
-				playerUpdate = true;
+				PlayerState ps;
+				PlayerState rs;
 
-				//enemyStates.push(gs.rival);
-				
-				rival.nCurrentPiece = gs.rival.nCurrentPiece;
-				rival.nCurrentRotation = gs.rival.nCurrentRotation;
-				rival.nCurrentX = gs.rival.nCurrentX;
-				rival.nCurrentY = gs.rival.nCurrentY;
-				rival.nScore = gs.rival.nScore;
-				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-				rivalUpdate = true;
-				
-			}
-			else if(msg.head.id == MessageType::GStateField){
-				GameStateField gs;
-				msg >> gs;
+				msg >> rs;
+				msg >> ps;
 
-				PlayerState ps = gs.player.playerState;
+				EnemyState es;
+				es.psf.playerState = rs;
+				es.intermediate = true;
+				enemyStates.push(es);
 
 				if(ps.lastRequest == -1){
-					player.nCurrentPiece = gs.player.playerState.nCurrentPiece;
-					player.nCurrentRotation = gs.player.playerState.nCurrentRotation;
-					player.nCurrentX = gs.player.playerState.nCurrentX;
-					player.nCurrentY = gs.player.playerState.nCurrentY;
-					player.nScore = gs.player.playerState.nScore;
-					player.bRotateHold = gs.player.playerState.bRotateHold;
-					for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
-						player.pField[i] = gs.player.field[i];
-					}
+					SetPlayer(ps);
 					player.Draw(screen, nScreenWidth, nScreenHeight, false);
 					playerUpdate = true;
 				}
 				else if(!Reconcilation(ps)){
-					// REAPPLY INPUTS
-					player.nCurrentPiece = ps.nCurrentPiece;
-					player.nCurrentRotation = ps.nCurrentRotation;
-					player.nCurrentX = ps.nCurrentX;
-					player.nCurrentY = ps.nCurrentY;
-					player.nScore = ps.nScore;
-					player.bRotateHold = ps.bRotateHold;
-
-					for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
-						player.pField[i] = gs.player.field[i];
-					}
-
+					SetPlayer(ps);
 					for (auto input : inputRequests){
 						for(int j = 0; j < 4; j++){
 							player.bKey[j] = input.inputs[j];
 						}
 						player.HandleInput();
 					}
-
 					player.Draw(screen, nScreenWidth, nScreenHeight, false);
 					playerUpdate = true;
 				}
+				
+			}
+			else if(msg.head.id == MessageType::GStateField_1_0){
+				PlayerStateField ps;
+				PlayerState rs;
+
+				msg >> rs;
+				msg >> ps;
 
 				EnemyState es;
-				es.psf.playerState = gs.rival.playerState;
+				es.psf.playerState = rs;
+				es.intermediate = true;
+				enemyStates.push(es);
+
+				SetPlayerField(ps);
+				player.Draw(screen, nScreenWidth, nScreenHeight, false);
+				playerUpdate = true;
+
+			}
+			else if(msg.head.id == MessageType::GStateField_0_1){
+				PlayerState ps;
+				PlayerStateField rs;
+
+				msg >> rs;
+				msg >> ps;
+
+				EnemyState es;
+				es.psf.playerState = rs.playerState;
 				for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
-					es.psf.field[i] = gs.rival.field[i];
+					es.psf.field[i] = rs.field[i];
 				}
 				es.intermediate = false;
 				enemyStates.push(es);
-				/*
-				rival.nCurrentPiece = gs.rival.playerState.nCurrentPiece;
-				rival.nCurrentRotation = gs.rival.playerState.nCurrentRotation;
-				rival.nCurrentX = gs.rival.playerState.nCurrentX;
-				rival.nCurrentY = gs.rival.playerState.nCurrentY;
-				rival.nScore = gs.rival.playerState.nScore;
-				for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
-					rival.pField[i] = gs.rival.field[i];
+
+				if(ps.lastRequest == -1){
+					SetPlayer(ps);
+					player.Draw(screen, nScreenWidth, nScreenHeight, false);
+					playerUpdate = true;
 				}
-				rival.Draw(screen, nScreenWidth, nScreenHeight, true);
-				rivalUpdate = true;
-				*/
+				else if(!Reconcilation(ps)){
+					SetPlayer(ps);
+					for (auto input : inputRequests){
+						for(int j = 0; j < 4; j++){
+							player.bKey[j] = input.inputs[j];
+						}
+						player.HandleInput();
+					}
+					player.Draw(screen, nScreenWidth, nScreenHeight, false);
+					playerUpdate = true;
+				}
+			}
+			else if(msg.head.id == MessageType::GStateField){
+
+				PlayerStateField ps;
+				PlayerStateField rs;
+
+				msg >> rs;
+				msg >> ps;
+
+				EnemyState es;
+				es.psf.playerState = rs.playerState;
+				for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
+					es.psf.field[i] = rs.field[i];
+				}
+				es.intermediate = false;
+				enemyStates.push(es);
+
+				SetPlayerField(ps);
+				player.Draw(screen, nScreenWidth, nScreenHeight, false);
+				playerUpdate = true;
 			}
 		}
 	private:
+		void SetPlayer(PlayerState ps){
+			player.nCurrentPiece = ps.nCurrentPiece;
+			player.nCurrentRotation = ps.nCurrentRotation;
+			player.nCurrentX = ps.nCurrentX;
+			player.nCurrentY = ps.nCurrentY;
+			player.nScore = ps.nScore;
+			player.bRotateHold = ps.bRotateHold;
+		}
+		void SetPlayerField(PlayerStateField ps){
+			SetPlayer(ps.playerState);
+			for(int i = 0; i < nFieldWidth * nFieldHeight; i++){
+				player.pField[i] = ps.field[i];
+			}
+		}
 		bool Reconcilation(PlayerState ps){
 			// ps is server state
 

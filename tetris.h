@@ -29,6 +29,8 @@ class tetris{
         std::vector<int> vLines;
 
         int nScore;
+
+		bool fieldUpdate;
         
         tetris(){
             nFieldWidth = 12;
@@ -40,6 +42,7 @@ class tetris{
             down = false;
             bRotateHold = true;
 			ready = true;
+			fieldUpdate = false;
 
             speed = 20;
 	        counter = 0;
@@ -68,7 +71,7 @@ class tetris{
 		void HandleInputVirtually(int tempCurrentPiece, int& tempCurrentX, int& tempCurrentY, int& tempCurrentRotation, bool& tempRotateHold);
         void Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool second);
 		void DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length, int count);
-        void Update(bool& bGameOver, bool second = false);
+        void Update(bool& bGameOver);
 		bool IsReady();
 };
 
@@ -175,7 +178,7 @@ void tetris::HandleInputVirtually(int tempCurrentPiece, int& tempCurrentX, int& 
         tempRotateHold = true;
 }
 
-void tetris::Update(bool& bGameOver, bool second){
+void tetris::Update(bool& bGameOver){
     if(!vLines.empty()){
 		if(clearCounter == clearSpeed){
 			for (auto &v : vLines){
@@ -185,6 +188,7 @@ void tetris::Update(bool& bGameOver, bool second){
 					pField[px] = 0;
 				}
 			}
+			fieldUpdate = true;
 			vLines.clear();
         }
 		clearCounter++;
@@ -196,14 +200,13 @@ void tetris::Update(bool& bGameOver, bool second){
 		counter = 0;
 		down = true;
 	}
-
-	//HandleInput();
 		
 	if(down){
 		down = false;
 		if(DoesPieceFit(nCurrentPiece, nCurrentRotation, nCurrentX, nCurrentY + 1))
 			nCurrentY += 1;
 		else{
+			fieldUpdate = true;
 			for (int px = 0; px < 4; px++)
 				for (int py = 0; py < 4; py++)
 					if (tetromino[nCurrentPiece][Rotate(px, py, nCurrentRotation)] != L'.')
@@ -263,15 +266,6 @@ void tetris::Draw(wchar_t* screen, int nScreenWidth, int nScreenHeight, bool sec
 		swprintf_s(&screen[21 * nScreenWidth + xSpace], 21, L"YOUR SCORE: %8d", nScore);
 	else
 		swprintf_s(&screen[21 * nScreenWidth + xSpace], 22, L"RIVAL SCORE: %8d", nScore);
-
-    /*
-    for (int y = 0; y < nFieldWidth; y++){
-		for (int x = 0; x < nFieldHeight; x++){
-			std::cout << (char)screen[(y + 2)*nScreenWidth + (x + 2)];
-		}
-		std::cout << "\n";
-	}
-    */
 }
 
 void tetris::DrawInfo(wchar_t* screen, int nScreenWidth, int nScreenHeight, wchar_t* message, int length, int count){
